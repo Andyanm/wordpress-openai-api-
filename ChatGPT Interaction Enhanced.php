@@ -1,8 +1,8 @@
 <?php
 /*
 Plugin Name: ChatGPT Interaction Enhanced
-Description: 插入一个美观的对话界面，通过后台设置API请求URL、API密钥和模型参数，支持按对话ID管理对话历史。支持基于用户的对话历史、对话次数限制，支持Markdown渲染。
-Version: 5.0
+Description: 插入一个美观的对话界面，通过后台设置API请求URL、API密钥和模型参数，支持按对话ID管理对话历史。支持基于用户的对话历史、对话次数限制。支持Markdown
+Version: 5.2
 Author: 您的姓名
 */
 
@@ -14,7 +14,6 @@ function chatgpt_interaction_activate() {
     global $wpdb;
     $table_name_conversations = $wpdb->prefix . 'chatgpt_conversations';
     $table_name_message_logs = $wpdb->prefix . 'chatgpt_message_logs';
-    $table_name_api_keys = $wpdb->prefix . 'chatgpt_api_keys';
     $charset_collate = $wpdb->get_charset_collate();
 
     // 创建对话表
@@ -42,85 +41,31 @@ function chatgpt_interaction_activate() {
         INDEX (created_at)
     ) $charset_collate;";
 
-    // 创建API密钥表，增加user_id字段
-    $sql_api_keys = "CREATE TABLE $table_name_api_keys (
-        id BIGINT(20) NOT NULL AUTO_INCREMENT,
-        user_id BIGINT(20) NOT NULL,
-        api_key VARCHAR(100) NOT NULL,
-        usage_limit INT(11) DEFAULT NULL,
-        usage_count INT(11) DEFAULT 0,
-        is_active TINYINT(1) DEFAULT 1,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (id),
-        UNIQUE KEY (api_key),
-        INDEX (user_id)
-    ) $charset_collate;";
-
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
     dbDelta($sql_conversations);
     dbDelta($sql_message_logs);
-    dbDelta($sql_api_keys);
 
     // 初始化设置
-    if (!get_option('chatgpt_models')) {
-        add_option('chatgpt_models', 'gpt-3.5-turbo, gpt-4');
-    }
-
-    if (!get_option('chatgpt_api_url')) {
-        add_option('chatgpt_api_url', 'https://api.openai.com/v1/chat/completions');
-    }
-
-    if (!get_option('chatgpt_api_key')) {
-        add_option('chatgpt_api_key', '');
-    }
-
-    if (!get_option('chatgpt_default_model')) {
-        add_option('chatgpt_default_model', 'gpt-3.5-turbo');
-    }
-
-    if (!get_option('chatgpt_save_conversations')) {
-        add_option('chatgpt_save_conversations', true);
-    }
-
-    if (!get_option('chatgpt_conversation_limit')) {
-        add_option('chatgpt_conversation_limit', 100); // 默认消息限制
-    }
-
-    if (!get_option('chatgpt_disable_users')) {
-        add_option('chatgpt_disable_users', []);
-    }
-
-    if (!get_option('chatgpt_system_prompt')) {
-        add_option('chatgpt_system_prompt', '');
-    }
-
-    if (!get_option('chatgpt_enable_system_prompt')) {
-        add_option('chatgpt_enable_system_prompt', false);
-    }
-
-    if (!get_option('chatgpt_chatgpt_avatar')) {
-        add_option('chatgpt_chatgpt_avatar', plugin_dir_url(__FILE__) . 'assets/chatgpt-avatar.png');
-    }
-
-    if (!get_option('chatgpt_title_generation_model')) {
-        add_option('chatgpt_title_generation_model', 'gpt-3.5-turbo');
-    }
-
-    if (!get_option('chatgpt_title_generation_prompt')) {
-        add_option('chatgpt_title_generation_prompt', '请为以下对话生成一个简短的标题，不超过10个字：');
-    }
+    add_option('chatgpt_models', 'gpt-3.5-turbo, gpt-4');
+    add_option('chatgpt_api_url', 'https://api.openai.com/v1/chat/completions');
+    add_option('chatgpt_api_key', '');
+    add_option('chatgpt_default_model', 'gpt-3.5-turbo');
+    add_option('chatgpt_save_conversations', true);
+    add_option('chatgpt_conversation_limit', 100); // 默认消息限制
+    add_option('chatgpt_disable_users', []);
+    add_option('chatgpt_system_prompt', '');
+    add_option('chatgpt_enable_system_prompt', false);
+    add_option('chatgpt_title_generation_model', 'gpt-3.5-turbo');
+    add_option('chatgpt_title_generation_prompt', '请为以下对话生成一个简短的标题，不超过10个字：');
 }
 
-// 删除插件时删除自定义数据库表和设置
 register_deactivation_hook(__FILE__, 'chatgpt_interaction_deactivate');
 function chatgpt_interaction_deactivate() {
     global $wpdb;
     $table_name_conversations = $wpdb->prefix . 'chatgpt_conversations';
     $table_name_message_logs = $wpdb->prefix . 'chatgpt_message_logs';
-    $table_name_api_keys = $wpdb->prefix . 'chatgpt_api_keys';
     $wpdb->query("DROP TABLE IF EXISTS $table_name_conversations");
     $wpdb->query("DROP TABLE IF EXISTS $table_name_message_logs");
-    $wpdb->query("DROP TABLE IF EXISTS $table_name_api_keys");
 
     delete_option('chatgpt_api_url');
     delete_option('chatgpt_api_key');
@@ -131,7 +76,6 @@ function chatgpt_interaction_deactivate() {
     delete_option('chatgpt_disable_users');
     delete_option('chatgpt_system_prompt');
     delete_option('chatgpt_enable_system_prompt');
-    delete_option('chatgpt_chatgpt_avatar');
     delete_option('chatgpt_title_generation_model');
     delete_option('chatgpt_title_generation_prompt');
 }
@@ -139,7 +83,6 @@ function chatgpt_interaction_deactivate() {
 // 添加主菜单和子菜单
 add_action('admin_menu', 'chatgpt_interaction_menu');
 function chatgpt_interaction_menu() {
-    // 添加ChatGPT 主菜单
     add_menu_page(
         'ChatGPT 设置',
         'ChatGPT',
@@ -150,7 +93,6 @@ function chatgpt_interaction_menu() {
         25
     );
 
-    // 添加子菜单项
     add_submenu_page(
         'chatgpt-main-menu',
         'ChatGPT 设置',
@@ -168,15 +110,6 @@ function chatgpt_interaction_menu() {
         'chatgpt-user-history',
         'chatgpt_interaction_user_history_page'
     );
-
-    add_submenu_page(
-        'chatgpt-main-menu',
-        'API 密钥管理',
-        'API 密钥管理',
-        'manage_options',
-        'chatgpt-api-keys',
-        'chatgpt_interaction_api_keys_page'
-    );
 }
 
 // 注册设置
@@ -191,7 +124,6 @@ function chatgpt_interaction_settings() {
     register_setting('chatgpt_interaction_options', 'chatgpt_disable_users', 'chatgpt_sanitize_array');
     register_setting('chatgpt_interaction_options', 'chatgpt_system_prompt', 'sanitize_textarea_field');
     register_setting('chatgpt_interaction_options', 'chatgpt_enable_system_prompt', 'intval');
-    register_setting('chatgpt_interaction_options', 'chatgpt_chatgpt_avatar', 'esc_url_raw');
     register_setting('chatgpt_interaction_options', 'chatgpt_title_generation_model', 'sanitize_text_field');
     register_setting('chatgpt_interaction_options', 'chatgpt_title_generation_prompt', 'sanitize_textarea_field');
 
@@ -206,7 +138,6 @@ function chatgpt_interaction_settings() {
     add_settings_field('chatgpt_disable_users', '禁用用户', 'chatgpt_interaction_disable_users_render', 'chatgpt-settings', 'chatgpt_interaction_main');
     add_settings_field('chatgpt_system_prompt', '系统提示词', 'chatgpt_interaction_system_prompt_render', 'chatgpt-settings', 'chatgpt_interaction_main');
     add_settings_field('chatgpt_enable_system_prompt', '启用系统提示词', 'chatgpt_interaction_enable_system_prompt_render', 'chatgpt-settings', 'chatgpt_interaction_main');
-    add_settings_field('chatgpt_chatgpt_avatar', 'ChatGPT 头像 URL', 'chatgpt_interaction_chatgpt_avatar_render', 'chatgpt-settings', 'chatgpt_interaction_main');
     add_settings_field('chatgpt_title_generation_model', '对话标题生成模型', 'chatgpt_interaction_title_generation_model_render', 'chatgpt-settings', 'chatgpt_interaction_main');
     add_settings_field('chatgpt_title_generation_prompt', '对话标题生成提示词', 'chatgpt_interaction_title_generation_prompt_render', 'chatgpt-settings', 'chatgpt_interaction_main');
 }
@@ -283,12 +214,6 @@ function chatgpt_interaction_enable_system_prompt_render() {
     $value = get_option('chatgpt_enable_system_prompt');
     echo '<input type="checkbox" name="chatgpt_enable_system_prompt" value="1" ' . checked(1, $value, false) . '>';
     echo '<p class="description">启用系统提示词。</p>';
-}
-
-function chatgpt_interaction_chatgpt_avatar_render() {
-    $value = get_option('chatgpt_chatgpt_avatar', plugin_dir_url(__FILE__) . 'assets/chatgpt-avatar.png');
-    echo '<input type="url" name="chatgpt_chatgpt_avatar" value="' . esc_attr($value) . '" size="50" required>';
-    echo '<p class="description">设置ChatGPT的头像URL。</p>';
 }
 
 function chatgpt_interaction_title_generation_model_render() {
@@ -521,121 +446,14 @@ function chatgpt_get_conversation_messages() {
 
     if ($conversation) {
         $messages = json_decode($conversation->messages, true);
-        wp_send_json_success(['messages' => $messages]);
+        // 过滤掉系统提示词
+        $messages = array_filter($messages, function($msg) {
+            return $msg['role'] !== 'system';
+        });
+        wp_send_json_success(['messages' => array_values($messages)]);
     } else {
         wp_send_json_error('未找到该对话。');
     }
-}
-
-// 添加API密钥管理页面
-function chatgpt_interaction_api_keys_page() {
-    if (!current_user_can('administrator')) {
-        wp_die('您没有权限访问此页面。');
-    }
-
-    global $wpdb;
-    $table_name_api_keys = $wpdb->prefix . 'chatgpt_api_keys';
-
-    // 处理添加新API密钥
-    if (isset($_POST['action']) && $_POST['action'] == 'add_api_key') {
-        check_admin_referer('add_api_key');
-
-        $usage_limit = isset($_POST['usage_limit']) ? intval($_POST['usage_limit']) : null;
-        $api_key = wp_generate_password(32, false);
-
-        $wpdb->insert(
-            $table_name_api_keys,
-            [
-                'user_id' => 0, // 0表示管理员生成的API密钥
-                'api_key' => $api_key,
-                'usage_limit' => $usage_limit,
-                'created_at' => current_time('mysql'),
-            ],
-            ['%d', '%s', '%d', '%s']
-        );
-
-        echo '<div class="notice notice-success is-dismissible"><p>API密钥已生成。</p></div>';
-    }
-
-    // 处理删除API密钥
-    if (isset($_GET['action']) && $_GET['action'] == 'delete' && isset($_GET['key_id'])) {
-        check_admin_referer('delete_api_key_' . $_GET['key_id']);
-
-        $wpdb->delete(
-            $table_name_api_keys,
-            ['id' => intval($_GET['key_id'])],
-            ['%d']
-        );
-
-        echo '<div class="notice notice-success is-dismissible"><p>API密钥已删除。</p></div>';
-    }
-
-    // 获取API密钥列表
-    $api_keys = $wpdb->get_results("SELECT * FROM $table_name_api_keys ORDER BY created_at DESC");
-
-    ?>
-    <div class="wrap">
-        <h1>API 密钥管理</h1>
-
-        <h2>生成新API密钥</h2>
-        <form method="post">
-            <?php wp_nonce_field('add_api_key'); ?>
-            <input type="hidden" name="action" value="add_api_key">
-            <table class="form-table">
-                <tr>
-                    <th scope="row"><label for="usage_limit">使用次数限制</label></th>
-                    <td>
-                        <input name="usage_limit" type="number" id="usage_limit" value="" class="small-text">
-                        <p class="description">留空表示不限次数。</p>
-                    </td>
-                </tr>
-            </table>
-            <?php submit_button('生成API密钥'); ?>
-        </form>
-
-        <h2>已有API密钥</h2>
-        <table class="wp-list-table widefat fixed striped">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>用户</th>
-                    <th>API密钥</th>
-                    <th>使用次数限制</th>
-                    <th>已使用次数</th>
-                    <th>状态</th>
-                    <th>创建时间</th>
-                    <th>操作</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (!empty($api_keys)): ?>
-                    <?php foreach ($api_keys as $key): ?>
-                        <?php
-                        $user = get_userdata($key->user_id);
-                        $username = $user ? $user->user_login : '管理员';
-                        ?>
-                        <tr>
-                            <td><?php echo esc_html($key->id); ?></td>
-                            <td><?php echo esc_html($username); ?></td>
-                            <td><?php echo esc_html($key->api_key); ?></td>
-                            <td><?php echo is_null($key->usage_limit) ? '不限' : esc_html($key->usage_limit); ?></td>
-                            <td><?php echo esc_html($key->usage_count); ?></td>
-                            <td><?php echo $key->is_active ? '激活' : '已禁用'; ?></td>
-                            <td><?php echo esc_html($key->created_at); ?></td>
-                            <td>
-                                <a href="<?php echo wp_nonce_url(add_query_arg(['action' => 'delete', 'key_id' => $key->id]), 'delete_api_key_' . $key->id); ?>" class="button">删除</a>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                <?php else: ?>
-                    <tr>
-                        <td colspan="8">暂无API密钥。</td>
-                    </tr>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
-    <?php
 }
 
 // 注册短代码
@@ -653,14 +471,14 @@ function chatgpt_interaction_shortcode() {
 
     // 引入必要的样式和脚本
     wp_enqueue_style('chatgpt-bootstrap', 'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css');
-    wp_enqueue_style('chatgpt-fontawesome', 'https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free/css/all.min.css');
     wp_enqueue_script('marked', 'https://cdn.jsdelivr.net/npm/marked/marked.min.js', [], null, true);
-    wp_enqueue_script('highlightjs', 'https://cdn.jsdelivr.net/npm/highlightjs@11.7.0/highlight.min.js', [], null, true);
-    wp_enqueue_style('highlightjs-style', 'https://cdn.jsdelivr.net/npm/highlightjs@11.7.0/styles/default.min.css');
-    wp_enqueue_script('chatgpt-frontend', plugin_dir_url(__FILE__) . 'chatgpt-frontend.js', ['jquery', 'marked', 'highlightjs'], null, true);
+    wp_enqueue_script('highlightjs', 'https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/lib/core.min.js', [], null, true);
+    wp_enqueue_style('highlightjs-style', 'https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/styles/github.min.css');
+    wp_enqueue_script('highlightjs-javascript', 'https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/lib/languages/javascript.min.js', ['highlightjs'], null, true);
+    wp_enqueue_script('highlightjs-php', 'https://cdn.jsdelivr.net/npm/highlight.js@11.7.0/lib/languages/php.min.js', ['highlightjs'], null, true);
 
     // 传递Ajax URL到前端脚本
-    wp_localize_script('chatgpt-frontend', 'chatgpt_ajax', [
+    wp_localize_script('jquery', 'chatgpt_ajax', [
         'ajax_url' => admin_url('admin-ajax.php'),
     ]);
 
@@ -675,9 +493,7 @@ function chatgpt_interaction_shortcode() {
     // 获取当前用户ID
     $user_id = get_current_user_id();
 
-    // 获取ChatGPT头像
-    $chatgpt_avatar_url = get_option('chatgpt_chatgpt_avatar', plugin_dir_url(__FILE__) . 'assets/chatgpt-avatar.png');
-
+    // Beautify the chat interface
     ob_start();
     ?>
     <div id="chatgpt-container" class="container mt-4 mb-4">
@@ -721,41 +537,103 @@ function chatgpt_interaction_shortcode() {
             display: flex;
             margin-bottom: 15px;
         }
-        .chatgpt-message .avatar {
-            width: 50px;
-            height: 50px;
-            margin-right: 10px;
-            border-radius: 50%;
-            overflow: hidden;
-        }
-        .chatgpt-message .avatar img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
         .chatgpt-message .message-content {
             max-width: 100%;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 16px;
+            line-height: 1.5;
         }
         .chatgpt-message.user {
             flex-direction: row-reverse;
         }
         .chatgpt-message.user .message-content {
             background-color: #d1e7dd;
-            border-radius: 15px 15px 0 15px;
-            padding: 10px;
+            border-bottom-right-radius: 0;
             margin-right: 10px;
         }
         .chatgpt-message.assistant .message-content {
             background-color: #e9ecef;
-            border-radius: 15px 15px 15px 0;
-            padding: 10px;
+            border-bottom-left-radius: 0;
             margin-left: 10px;
+        }
+        .chatgpt-message .sender-label {
+            font-weight: bold;
+            margin-bottom: 5px;
         }
         pre {
             background-color: #f8f9fa;
             padding: 10px;
             border-radius: 5px;
             overflow-x: auto;
+        }
+        #chatgpt-input-area {
+            position: relative;
+        }
+        #chatgpt-input {
+            resize: none;
+        }
+        #chatgpt-send {
+            border-radius: 0 5px 5px 0;
+        }
+        /* 美化滚动条 */
+        #chatgpt-messages::-webkit-scrollbar {
+            width: 8px;
+        }
+        #chatgpt-messages::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        #chatgpt-messages::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        #chatgpt-messages::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* 美化按钮 */
+        .btn {
+            transition: background-color 0.3s;
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+        /* 对话历史样式 */
+        #chatgpt-history-list ul {
+            list-style: none;
+            padding: 0;
+        }
+        #chatgpt-history-list li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #ffffff;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        #chatgpt-history-list li:hover {
+            background-color: #f8f9fa;
+        }
+        .chatgpt-select-conversation {
+            background: none;
+            border: none;
+            padding: 0;
+            color: #007bff;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 16px;
+        }
+        .chatgpt-select-conversation:hover {
+            text-decoration: underline;
+        }
+        .chatgpt-delete-conversation {
+            font-size: 14px;
+        }
+        /* 思考中提示 */
+        #chatgpt-thinking {
+            font-style: italic;
+            color: #6c757d;
+            margin-bottom: 15px;
         }
     </style>
 
@@ -800,7 +678,7 @@ function chatgpt_interaction_shortcode() {
 
                 appendMessage('您', message);
                 $('#chatgpt-input').val('');
-                showLoading();
+                showThinking();
 
                 $.ajax({
                     url: ajaxUrl,
@@ -812,22 +690,21 @@ function chatgpt_interaction_shortcode() {
                         conversation_id: conversationId
                     },
                     success: function(response) {
-                        hideLoading();
+                        hideThinking();
                         if (response.success) {
                             if (!conversationId) {
                                 conversationId = response.data.conversation_id;
                                 localStorage.setItem('chatgpt_conversationId', conversationId);
                                 loadConversationList();
                             }
-                            appendMessage('ChatGPT', response.data.reply, true);
-                            // 更新对话标题
+                            appendMessage('AI', response.data.reply, true);
                             updateConversationTitle(conversationId, response.data.title);
                         } else {
                             showError(response.data);
                         }
                     },
                     error: function() {
-                        hideLoading();
+                        hideThinking();
                         showError('无法连接到服务器，请稍后再试。');
                     }
                 });
@@ -843,10 +720,10 @@ function chatgpt_interaction_shortcode() {
                     success: function(response) {
                         if (response.success) {
                             const conversations = response.data.conversations;
-                            let html = '<ul class="list-group">';
+                            let html = '<ul>';
                             conversations.forEach(function(conv) {
-                                html += `<li class="list-group-item d-flex justify-content-between align-items-center">
-                                            <button class="chatgpt-select-conversation btn btn-link" data-conversation-id="${conv.conversation_id}">
+                                html += `<li>
+                                            <button class="chatgpt-select-conversation" data-conversation-id="${conv.conversation_id}">
                                                 ${conv.title ? conv.title : '未命名对话'}
                                             </button>
                                             <div>
@@ -893,8 +770,10 @@ function chatgpt_interaction_shortcode() {
                         if (response.success) {
                             const messages = response.data.messages;
                             messages.forEach(msg => {
-                                const sender = msg.role === 'user' ? '您' : 'ChatGPT';
-                                appendMessage(sender, msg.content, sender !== '您');
+                                if (msg.role !== 'system') {
+                                    const sender = msg.role === 'user' ? '您' : 'AI';
+                                    appendMessage(sender, msg.content, sender !== '您');
+                                }
                             });
                         } else {
                             showError(response.data);
@@ -934,14 +813,11 @@ function chatgpt_interaction_shortcode() {
 
             function appendMessage(sender, message, isMarkdown = false) {
                 const senderClass = sender === '您' ? 'user' : 'assistant';
-                const avatarUrl = sender === '您' ? '<?php echo get_avatar_url($user_id); ?>' : '<?php echo $chatgpt_avatar_url; ?>';
                 const messageElement = $(`
                     <div class="chatgpt-message ${senderClass}">
-                        <div class="avatar">
-                            <img src="${avatarUrl}" alt="${sender}">
-                        </div>
                         <div class="message-content">
-                            <div>${isMarkdown && sender !== '您' ? marked.parse(message) : escapeHtml(message)}</div>
+                            <div class="sender-label">${sender}</div>
+                            <div>${isMarkdown && sender !== '您' ? marked.parse(message) : message}</div>
                         </div>
                     </div>
                 `);
@@ -951,47 +827,35 @@ function chatgpt_interaction_shortcode() {
 
                 // 语法高亮
                 $('pre code').each(function(i, block) {
-                    hljs.highlightBlock(block);
+                    hljs.highlightElement(block);
                 });
             }
 
-            function showLoading() {
-                const loadingElement = $(`
-                    <div id="chatgpt-loading" class="chatgpt-message mb-3">
+            function showThinking() {
+                const thinkingElement = $(`
+                    <div id="chatgpt-thinking" class="chatgpt-message assistant">
                         <div class="message-content">
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
+                            <div class="sender-label">AI</div>
+                            <div>正在思考...</div>
                         </div>
                     </div>
                 `);
-                $('#chatgpt-messages').append(loadingElement);
+                $('#chatgpt-messages').append(thinkingElement);
                 $('#chatgpt-messages').scrollTop($('#chatgpt-messages')[0].scrollHeight);
             }
 
-            function hideLoading() {
-                $('#chatgpt-loading').remove();
+            function hideThinking() {
+                $('#chatgpt-thinking').remove();
             }
 
             function showError(message) {
-                const errorElement = $(`<div class="alert alert-danger mt-3"><strong>错误:</strong> ${escapeHtml(message)}</div>`);
+                const errorElement = $(`<div class="alert alert-danger mt-3"><strong>错误:</strong> ${message}</div>`);
                 $('#chatgpt-messages').append(errorElement);
                 $('#chatgpt-messages').scrollTop($('#chatgpt-messages')[0].scrollHeight);
 
                 setTimeout(() => {
                     errorElement.remove();
                 }, 5000);
-            }
-
-            function escapeHtml(text) {
-                var map = {
-                    '&': '&amp;',
-                    '<': '&lt;',
-                    '>': '&gt;',
-                    '"': '&quot;',
-                    "'": '&#039;'
-                };
-                return text.replace(/[&<>"']/g, function(m) { return map[m]; });
             }
 
             function updateConversationTitle(convId, title) {
@@ -1054,7 +918,11 @@ function chatgpt_interaction_get_conversation() {
 
     if ($conversation_row) {
         $messages = json_decode($conversation_row->messages, true);
-        wp_send_json_success(['messages' => $messages]);
+        // 过滤掉系统提示词
+        $messages = array_filter($messages, function($msg) {
+            return $msg['role'] !== 'system';
+        });
+        wp_send_json_success(['messages' => array_values($messages)]);
     } else {
         wp_send_json_error('未找到该对话');
     }
@@ -1108,6 +976,7 @@ function chatgpt_interaction_respond() {
 
     // 获取请求中的消息和模型
     $message_content = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
+    $image_content = isset($_POST['image']) ? sanitize_textarea_field($_POST['image']) : '';
     $selected_model = isset($_POST['model']) ? sanitize_text_field($_POST['model']) : get_option('chatgpt_default_model', 'gpt-3.5-turbo');
     $conversation_id = isset($_POST['conversation_id']) ? sanitize_text_field($_POST['conversation_id']) : null;
 
@@ -1115,7 +984,7 @@ function chatgpt_interaction_respond() {
     $api_key = get_option('chatgpt_api_key');
     $save_conversations = get_option('chatgpt_save_conversations');
 
-    if (empty($api_key) || empty($message_content)) {
+    if (empty($api_key) || (empty($message_content) && empty($image_content))) {
         wp_send_json_error('API密钥或消息内容为空');
     }
 
@@ -1175,13 +1044,33 @@ function chatgpt_interaction_respond() {
     }
 
     // 更新对话
-    $conversation[] = ['role' => 'user', 'content' => $message_content];
+    if (!empty($message_content)) {
+        $conversation[] = ['role' => 'user', 'content' => $message_content];
+    } elseif (!empty($image_content)) {
+        $conversation[] = ['role' => 'user', 'content' => $image_content, 'type' => 'image'];
+    }
+
+    // 准备请求数据
+    $messages = [];
+    foreach ($conversation as $msg) {
+        if (isset($msg['type']) && $msg['type'] === 'image') {
+            $messages[] = [
+                'role' => $msg['role'],
+                'content' => '请描述这张图片的内容。',
+                'image' => $msg['content']
+            ];
+        } else {
+            $messages[] = [
+                'role' => $msg['role'],
+                'content' => $msg['content']
+            ];
+        }
+    }
 
     $data = [
         'model' => $selected_model,
-        'messages' => $conversation,
+        'messages' => $messages,
         'temperature' => 0.7,
-        'stream' => false,
     ];
 
     $args = [
@@ -1207,6 +1096,11 @@ function chatgpt_interaction_respond() {
         $reply = $result['choices'][0]['message']['content'];
         $conversation[] = ['role' => 'assistant', 'content' => $reply];
 
+        // 计算不包含系统提示词的消息数量
+        $message_count = count(array_filter($conversation, function($msg) {
+            return $msg['role'] !== 'system';
+        }));
+
         // 保存对话历史
         $conversation_json = json_encode($conversation);
         if ($save_conversations) {
@@ -1216,7 +1110,7 @@ function chatgpt_interaction_respond() {
                     $table_name,
                     [
                         'messages' => $conversation_json,
-                        'message_count' => count($conversation),
+                        'message_count' => $message_count,
                         'created_at' => current_time('mysql'),
                     ],
                     [
@@ -1238,7 +1132,7 @@ function chatgpt_interaction_respond() {
                         'user_id' => $user_id,
                         'conversation_id' => $new_conversation_id,
                         'messages' => $conversation_json,
-                        'message_count' => count($conversation),
+                        'message_count' => $message_count,
                         'title' => $title,
                         'created_at' => current_time('mysql'),
                     ],
@@ -1321,101 +1215,4 @@ function chatgpt_generate_conversation_title($conversation) {
     } else {
         return '未命名对话';
     }
-}
-
-// 前端API密钥管理短代码
-add_shortcode('chatgpt_api_key_management', 'chatgpt_api_key_management_shortcode');
-function chatgpt_api_key_management_shortcode() {
-    if (!is_user_logged_in()) {
-        return '<p>您必须登录才能使用此功能。</p>';
-    }
-
-    $user_id = get_current_user_id();
-    global $wpdb;
-    $table_name_api_keys = $wpdb->prefix . 'chatgpt_api_keys';
-
-    // 处理API密钥生成
-    if (isset($_POST['chatgpt_generate_api_key'])) {
-        check_admin_referer('chatgpt_generate_api_key');
-
-        // 生成新API密钥
-        $api_key = wp_generate_password(32, false);
-
-        $wpdb->insert(
-            $table_name_api_keys,
-            [
-                'user_id' => $user_id,
-                'api_key' => $api_key,
-                'created_at' => current_time('mysql'),
-            ],
-            ['%d', '%s', '%s']
-        );
-
-        echo '<div class="notice notice-success is-dismissible"><p>API密钥已生成。</p></div>';
-    }
-
-    // 处理API密钥撤销
-    if (isset($_POST['chatgpt_revoke_api_key']) && isset($_POST['key_id'])) {
-        check_admin_referer('chatgpt_revoke_api_key_' . $_POST['key_id']);
-
-        $key_id = intval($_POST['key_id']);
-
-        // 删除API密钥
-        $wpdb->delete(
-            $table_name_api_keys,
-            ['id' => $key_id, 'user_id' => $user_id],
-            ['%d', '%d']
-        );
-
-        echo '<div class="notice notice-success is-dismissible"><p>API密钥已撤销。</p></div>';
-    }
-
-    // 获取用户的API密钥
-    $api_keys = $wpdb->get_results($wpdb->prepare("SELECT * FROM $table_name_api_keys WHERE user_id = %d ORDER BY created_at DESC", $user_id));
-
-    ob_start();
-    ?>
-    <div class="chatgpt-api-key-management">
-        <h2>我的 API 密钥</h2>
-
-        <form method="post">
-            <?php wp_nonce_field('chatgpt_generate_api_key'); ?>
-            <input type="hidden" name="chatgpt_generate_api_key" value="1">
-            <?php submit_button('生成新的 API 密钥'); ?>
-        </form>
-
-        <?php if (!empty($api_keys)): ?>
-            <table class="wp-list-table widefat fixed striped">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>API密钥</th>
-                        <th>创建时间</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($api_keys as $key): ?>
-                        <tr>
-                            <td><?php echo esc_html($key->id); ?></td>
-                            <td><?php echo esc_html($key->api_key); ?></td>
-                            <td><?php echo esc_html($key->created_at); ?></td>
-                            <td>
-                                <form method="post" style="display:inline;">
-                                    <?php wp_nonce_field('chatgpt_revoke_api_key_' . $key->id); ?>
-                                    <input type="hidden" name="chatgpt_revoke_api_key" value="1">
-                                    <input type="hidden" name="key_id" value="<?php echo esc_attr($key->id); ?>">
-                                    <?php submit_button('撤销', 'delete', '', false); ?>
-                                </form>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        <?php else: ?>
-            <p>您还没有生成任何 API 密钥。</p>
-        <?php endif; ?>
-    </div>
-    <?php
-    return ob_get_clean();
 }
