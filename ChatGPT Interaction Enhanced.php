@@ -3,7 +3,7 @@
 Plugin Name: ChatGPT Interaction Enhanced
 Description: 插入一个美观的对话界面，通过后台设置API请求URL、API密钥和模型参数，支持按对话ID管理对话历史。支持基于用户的对话历史、对话次数限制。支持Markdown
 Version: 5.2
-Author: 您的姓名
+Author: Andyan
 */
 
 if (!defined('ABSPATH')) exit;
